@@ -1,0 +1,8 @@
+[ubuntu_nodes]
+#serverIPs
+
+[other OS_nodes]
+
+[all:vars]
+ansible_user=ansible_login-User
+ansible_ssh_private_key_file=

@@ -1,0 +1,75 @@
+- name: Install Node Exporter on Amazon Linux 1
+  hosts: amazon_linux_nodes
+  become: yes
+
+  vars:
+    node_exporter_version: "1.9.1"
+    node_exporter_user: nobody
+    node_exporter_dir: "/tmp/node_exporter"
+    node_exporter_archive: "node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    node_exporter_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_archive }}"
+
+  tasks:
+    - name: Create temp directory
+      file:
+        path: "{{ node_exporter_dir }}"
+        state: directory
+
+    - name: Download Node Exporter
+      get_url:
+        url: "{{ node_exporter_url }}"
+        dest: "{{ node_exporter_dir }}/{{ node_exporter_archive }}"
+
+    - name: Extract Node Exporter archive
+      unarchive:
+        src: "{{ node_exporter_dir }}/{{ node_exporter_archive }}"
+        dest: "{{ node_exporter_dir }}"
+        remote_src: yes
+
+    - name: Move node_exporter binary to /usr/local/bin
+      copy:
+        src: "{{ node_exporter_dir }}/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        remote_src: yes
+        mode: '0755'
+
+    - name: Create Node Exporter SysVinit service script
+      copy:
+        dest: /etc/init.d/node_exporter
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # chkconfig: 2345 99 01
+          # description: Node Exporter
+
+          case "$1" in
+            start)
+              echo "Starting node_exporter"
+              /usr/local/bin/node_exporter &
+              ;;
+            stop)
+              echo "Stopping node_exporter"
+              pkill -f node_exporter
+              ;;
+            restart)
+              $0 stop
+              $0 start
+              ;;
+            status)
+              pgrep -f node_exporter > /dev/null && echo "Running" || echo "Stopped"
+              ;;
+            *)
+              echo "Usage: $0 {start|stop|restart|status}"
+              exit 1
+          esac
+
+          exit 0
+
+    - name: Add node_exporter service to chkconfig
+      command: chkconfig --add node_exporter
+
+    - name: Enable node_exporter to start on boot
+      command: chkconfig node_exporter on
+
+    - name: Start node_exporter service
+      command: service node_exporter start
